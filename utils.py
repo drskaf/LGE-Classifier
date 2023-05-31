@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pydicom
 import utils
+import matplotlib.image as mpimg
 
 
 def centre_crop(img, new_width=None, new_height=None):
@@ -52,8 +53,7 @@ def load_lge_data(directory, df, im_size):
             print("\nWorking on ", folder)
             dlist = []
             for file_path in file_paths:
-                img = pydicom.read_file(file_path)
-                img = img.pixel_array
+                mpimg.imread(os.path.join(dir_path, file))
                 img = centre_crop(img)
                 img = resize(img, (im_size, im_size))
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -69,8 +69,7 @@ def load_lge_data(directory, df, im_size):
             dlist = []
             for i in file_paths[0:]:
                 # Read stacked dicom and add to list
-                img = pydicom.read_file(os.path.join(dir_path, i), force=True)
-                img = img.pixel_array
+                img = mpimg.imread(os.path.join(dir_path, i))
                 img = centre_crop(img)
                 img = resize(img, (im_size, im_size))
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
