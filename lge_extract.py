@@ -71,7 +71,7 @@ for draw, i in zip(dicomStackList, indicesStackList):
         dlge = draw[k]
         files = range(len(dlge[:, ]))
         for f in files:
-            img = utils.centre_crop(dlge[f])
+            img = dlge[f]
             dir = f"{i}"
             path = os.path.join('lge_img', dir)
             os.makedirs(path, exist_ok=True)
@@ -81,7 +81,7 @@ for draw, i in zip(dicomStackList, indicesStackList):
 for draw, i in zip(dicomSingleList, indicesSingleList):
     keys = range(len(draw))
     for k in keys:
-        img = utils.centre_crop(draw[k])
+        img = draw[k]
         dir = f"{i}"
         path = os.path.join('lge_img', dir)
         os.makedirs(path, exist_ok=True)
