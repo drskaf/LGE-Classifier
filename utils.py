@@ -6,7 +6,7 @@ import pydicom
 import utils
 import matplotlib.image as mpimg
 
-
+# Load lge images
 def load_lge_data(directory, df, im_size):
     """
     Args:
@@ -17,44 +17,62 @@ def load_lge_data(directory, df, im_size):
 
     images = []
     indices = []
-    
-    dir_paths = sorted(glob.glob(os.path.join(directory, "*")))
-    for dir_path in dir_paths:
-        file_paths = sorted(glob.glob(os.path.join(dir_path, "*.dcm")))
 
-        if len(file_paths) > 4:
-            folder = os.path.split(dir_path)[1]
-            folder_strip = folder.rstrip('_')
-            print("\nWorking on ", folder)
-            dlist = []
-            for file_path in file_paths:
-                mpimg.imread(os.path.join(dir_path, file))
-                img = centre_crop(img)
-                img = resize(img, (im_size, im_size))
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                dlist.append(img)
-            imgStack = np.stack(dlist, axis=2)
-            images.append(imgStack)
-            indices.append(folder_strip)
+    # Loop over folders and files
+    for root, dirs, files in os.walk(directory, topdown=True):
+        if '.DS_Store' in files:
+            files.remove('.DS_Store')
+        for dir in dirs:
+            imgList = []
+            folder_strip = dir.rstrip('_')
+            dir_path = os.path.join(directory, dir)
+            files = os.listdir(dir_path)
+            l = len(files)
+            for file in files:
+                file_name = os.path.basename(file)
+                file_name = file_name[:file_name.find('.')]
 
-        else:
-            folder = os.path.split(dir_path)[1]
-            folder_strip = folder.rstrip('_')
-            print("\nWorking on ", folder)
-            dlist = []
-            for i in file_paths[0:]:
-                # Read stacked dicom and add to list
-                img = mpimg.imread(os.path.join(dir_path, i))
-                img = centre_crop(img)
-                img = resize(img, (im_size, im_size))
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                dlist.append(img)
-            imgStack = np.stack(dlist, axis=2)
-            images.append(imgStack)
-            indices.append(folder_strip)
-            
+                if file_name in ('0_1', '1_1', '2_1', '3_1'):
+                    img = mpimg.imread(os.path.join(dir_path, file))
+                    img = resize(img, (im_size, im_size))
+                    imgList.append(img)
+
+                elif file_name == f'{l-1}':
+                    img = mpimg.imread(os.path.join(dir_path, file))
+                    img = resize(img, (im_size, im_size))
+                    imgList.append(img)
+                elif file_name == f'{l-3}':
+                    img = mpimg.imread(os.path.join(dir_path, file))
+                    img = resize(img, (im_size, im_size))
+                    imgList.append(img)
+                elif file_name == f'{l-6}':
+                    img = mpimg.imread(os.path.join(dir_path, file))
+                    img = resize(img, (im_size, im_size))
+                    imgList.append(img)
+                elif file_name == f'{l-9}':
+                    img = mpimg.imread(os.path.join(dir_path, file))
+                    img = resize(img, (im_size, im_size))
+                    imgList.append(img)
+
+                else:
+                    continue
+
+            images.append(imgList)
+            indices.append(int(folder_strip))
+
+    Images = []
+    for image_list in images:
+        img = cv2.vconcat(image_list)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = resize(gray, (224, 224))
+        out = cv2.merge([gray, gray, gray])
+        # out = gray[..., np.newaxis]
+        Images.append(out)
+        #plt.imshow(img)
+        #plt.show()
+
     idx_df = pd.DataFrame(indices, columns=['ID'])
+    idx_df['LGE'] = Images
     info_df = pd.merge(df, idx_df, on=['ID'])
-    info_df['LGE'] = images
 
     return (info_df)
