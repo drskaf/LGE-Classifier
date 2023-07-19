@@ -103,12 +103,8 @@ aha_list = ['LGE_basal anterior','LGE_basal anteroseptum','LGE_basal inferoseptu
 
 y_train = np.array(df_train[aha_list])
 y_train[y_train == 2] = 1
-#tlist = y_train.tolist()
-#print(tlist.count(1))
 y_valid = np.array(df_valid[aha_list])
 y_valid[y_valid == 2] = 1
-#vlist = y_valid.tolist()
-#print(vlist.count(1))
 #p_ind_train = df_train[df_train[args["target"]]==1].index.tolist()
 #np_ind_train = df_train[df_train[args["target"]]==0].index.tolist()
 #np_sample_train = sample(np_ind_train, len(p_ind_train))
