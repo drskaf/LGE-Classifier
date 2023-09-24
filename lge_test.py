@@ -60,7 +60,6 @@ def process_attributes(df):
 
     return (testX)
 
-
 # Load trained models
 # AHA1
 (df) = utils.load_lge_images('/Users/ebrahamalskaf/Documents/**LGE_CLASSIFICATION**/LGE_test', patient_info, 224)
@@ -355,22 +354,35 @@ prob_output_dfMM = pd.DataFrame(prob_outputsMM)
 print(prob_output_dfMM.head())
 
 # VT
-survival_yhatVT = np.array(df['VT_x'])
-json_file = open('models/Mortality/lge_mortality.json','r')
-modelMM_json = json_file.read()
+survival_yhatVT = np.array(df['VT'])
+json_file = open('models/VA/lge_VA.json','r')
+modelVA_json = json_file.read()
 json_file.close()
-modelMM = model_from_json(modelMM_json)
-modelMM.load_weights('models/Mortality/lge_mortality_my_model.best.hdf5')
+modelVA = model_from_json(modelVA_json)
+modelVA.load_weights('models/VA/lge_VA_my_model.best.hdf5')
 
 # Predict with model
-predsMM = modelMM.predict([testAttrX, testImageX])
-pred_test_clMM = np.array(list(map(lambda x: 0 if x<0.5 else 1, predsMM)))
-print(pred_test_clMM[:5])
+predsVA = modelVA.predict([testAttrX, testImageX])
+pred_test_clVA = np.array(list(map(lambda x: 0 if x<0.5 else 1, predsVA)))
+print(pred_test_clVA[:5])
 
-prob_outputsMM = {
-    "pred": pred_test_clMM,
-    "actual_value": survival_yhat
+prob_outputsVA = {
+    "pred": pred_test_clVA,
+    "actual_value": survival_yhatVT
 }
 
-prob_output_dfMM = pd.DataFrame(prob_outputsMM)
-print(prob_output_dfMM.head())
+prob_output_dfVA = pd.DataFrame(prob_outputsVA)
+print(prob_output_dfVA.head())
+
+fpr, tpr, _ = roc_curve(survival_yhatMM, predsMM[:,0])
+auc = round(roc_auc_score(survival_yhatMM, predsMM[:,0]), 2)
+plt.plot(fpr, tpr, label="HNN Mortality AUC="+str(auc), color='blue')
+fpr, tpr, _ = roc_curve(survival_yhatVT, predsVA[:,0])
+auc = round(roc_auc_score(survival_yhatVT, predsVA[:,0]), 2)
+plt.plot(fpr, tpr, label="HNN Ventricular Arrhythmia AUC="+str(auc), color='red')
+plt.plot([0, 1], [0, 1], color='navy', lw=1, linestyle='--')
+plt.legend()
+plt.xlabel('1 - Specificity')
+plt.ylabel('Sensitivity')
+plt.grid()
+plt.show()
