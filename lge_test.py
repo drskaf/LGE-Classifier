@@ -62,7 +62,7 @@ def process_attributes(df):
 
 # Load trained models
 # AHA1
-(df) = utils.load_lge_images('/Users/ebrahamalskaf/Documents/**LGE_CLASSIFICATION**/LGE_test', patient_info, 224)
+(df) = utils.load_lge_images('/Users/ebrahamalskaf/Documents/test1', patient_info, 224)
 testX = np.array([x for x in df['LGE']])
 survival_yhat1 = np.array(df['LGE_basal anterior'])
 json_file = open('models/AHA1/aha1.json','r')
@@ -315,6 +315,12 @@ plt.show()
 
 # Calculate Cohen Kappa agreeement
 import statsmodels.api as sm
+# Calculate Cohen Kappa agreeement
+import statsmodels.api as sm
+
+predictions = np.array(list(map(lambda x: 0 if x<0.5 else 1, predictionsMul)))
+ground_truth = np.squeeze(ground_truth)
+print('Cohen Kappa Score:', cohen_kappa_score(predictions, ground_truth))
 
 #lad_pred = np.array(list(map(lambda x: 0 if x<0.5 else 1, lad_pred)))
 #lad_gt = np.squeeze(lad_gt)
