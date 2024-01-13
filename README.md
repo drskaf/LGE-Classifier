@@ -4,8 +4,8 @@ This repository is created to train and test 2 groups of models:
 2. Outcome prediction models to predict mortality and ventricular arrhythmia\
 
 ## Scripts:
-aha_lge.py for training AHA classifier /
-lge_test.py for testing AHA classifier /
-mixed_mortality_nn.py for mortality prediction with mixed data type /
-mixed_vt_nn.py for ventricular arrhythmia prediction with mixed data type /
-test_outcome.py for testing both prediction models /
+aha_lge.py for training AHA classifier    
+lge_test.py for testing AHA classifier    
+mixed_mortality_nn.py for mortality prediction with mixed data type    
+mixed_vt_nn.py for ventricular arrhythmia prediction with mixed data type    
+test_outcome.py for testing both prediction models    
