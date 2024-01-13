@@ -13,7 +13,8 @@ from keras.models import model_from_json, load_model
 import matplotlib.image as mpimg
 from skimage.transform import resize
 import cv2
-from sklearn.metrics import roc_auc_score, accuracy_score, f1_score, roc_curve, classification_report, precision_recall_curve, average_precision_score
+from sklearn.metrics import roc_auc_score, accuracy_score, f1_score, roc_curve, classification_report, \
+    precision_recall_curve, average_precision_score, confusion_matrix, ConfusionMatrixDisplay
 import pickle
 from random import sample
 from sklearn.model_selection import train_test_split
@@ -23,18 +24,12 @@ from sklearn.preprocessing import StandardScaler
 from keras.losses import BinaryCrossentropy
 from tensorflow.keras.optimizers import Adam
 from sklearn.metrics import cohen_kappa_score
+from statsmodels.stats.contingency_tables import mcnemar
+from mlxtend.evaluate import mcnemar_table, mcnemar
 
-# Command line arguments
-ap = argparse.ArgumentParser()
-ap.add_argument("-d", "--directory", required=False, help="path to input directory")
-args = vars(ap.parse_args())
 
 # Load dataframe and creating classes
 patient_info = pd.read_csv('/Users/ebrahamalskaf/Documents/patient_info.csv')
-patient_info['Ventricular_fibrillation_(disorder)'] = patient_info['Ventricular_fibrillation_(disorder)'].astype(int)
-patient_info['Ventricular_tachycardia_(disorder)'] = patient_info['Ventricular_tachycardia_(disorder)'].astype(int)
-patient_info['VT'] = patient_info[['Ventricular_fibrillation_(disorder)', 'Ventricular_tachycardia_(disorder)']].apply(lambda x:'{}'.format(np.max(x)), axis=1)
-patient_info['VT'] = patient_info['VT'].astype(int)
 aha_list = ['LGE_basal anterior','LGE_basal anteroseptum','LGE_basal inferoseptum','LGE_basal inferior'
                         ,'LGE_basal inferolateral', 'LGE_basal anterolateral','LGE_mid anterior','LGE_mid anteroseptum','LGE_mid inferoseptum','LGE_mid inferior',
                                        'LGE_mid inferolateral','LGE_mid anterolateral','LGE_apical anterior', 'LGE_apical septum','LGE_apical inferior','LGE_apical lateral', 'True_apex_x']
@@ -62,7 +57,7 @@ def process_attributes(df):
 
 # Load trained models
 # AHA1
-(df) = utils.load_lge_images('/Users/ebrahamalskaf/Documents/test1', patient_info, 224)
+(df) = utils.load_lge_images('/Users/ebrahamalskaf/Documents/**LGE_CLASSIFICATION**/LGE-test', patient_info, 224)
 testX = np.array([x for x in df['LGE']])
 survival_yhat1 = np.array(df['LGE_basal anterior'])
 json_file = open('models/AHA1/aha1.json','r')
@@ -77,7 +72,7 @@ json_fileMul = open('models/MultiLabel/multilabel_aha.json','r')
 modelMul_json = json_fileMul.read()
 json_fileMul.close()
 modelMul = model_from_json(modelMul_json)
-modelMul.load_weights("models/MultiLabel/multilabel_aha_my_model.best.hdf5")
+modelMul.load_weights("models/Multilabel/multilabel_aha_my_model.best.hdf5")
 predsMul1 = np.expand_dims(modelMul.predict(testX)[:,0], axis=1)
 
 # AHA2
@@ -115,19 +110,6 @@ preds4 = model4.predict(testX)
 # Predict with multilabel models
 survival_yhat4 = np.array(df['LGE_basal inferior'])
 predsMul4 = np.expand_dims(modelMul.predict(testX)[:,3], axis=1)
-
-#fpr, tpr, _ = roc_curve(survival_yhat4, preds4[:,0])
-#auc = round(roc_auc_score(survival_yhat4, preds4[:,0]), 2)
-#plt.plot(fpr, tpr, label="AHA Cluster Classifiers AUC="+str(auc), color='navy')
-#fpr, tpr, _ = roc_curve(survival_yhat4, predsMul4[:,0])
-#auc = round(roc_auc_score(survival_yhat4, predsMul4[:,0]), 2)
-#plt.plot(fpr, tpr, label="AHA Multilabel Classifier AUC="+str(auc), color='gold')
-#plt.plot([0, 1], [0, 1], color='navy', lw=1, linestyle='--')
-#plt.legend()
-#plt.xlabel('1 - Specificity')
-#plt.ylabel('Sensitivity')
-#plt.grid()
-#plt.show()
 
 # AHA5
 json_file = open('models/AHA5/aha5.json','r')
@@ -290,22 +272,24 @@ predictions = np.concatenate((preds1, preds2, preds3, preds4, preds5, preds6, pr
 predictionsMul = np.concatenate((predsMul1, predsMul2, predsMul3, predsMul4, predsMul5, predsMul6, predsMul7, predsMul8, predsMul9, predsMul10, predsMul11, predsMul12, predsMul13, predsMul14, predsMul15, predsMul16, predsMul17))
 ground_truth = np.concatenate((survival_yhat1, survival_yhat2, survival_yhat3, survival_yhat4, survival_yhat5, survival_yhat6, survival_yhat7, survival_yhat8, survival_yhat9, survival_yhat10, survival_yhat11, survival_yhat12, survival_yhat13, survival_yhat14, survival_yhat15, survival_yhat16, survival_yhat17))
 
-#lad_pred = np.concatenate((preds1, preds2, preds7, preds8, preds13, preds14))
-#lad_gt = np.concatenate((survival_yhat1, survival_yhat2, survival_yhat7, survival_yhat8, survival_yhat13, survival_yhat14))
-
-#rca_pred = np.concatenate((preds3, preds4, preds9, preds10, preds15))
-#rca_gt = np.concatenate((survival_yhat3, survival_yhat4, survival_yhat9, survival_yhat10, survival_yhat15))
-
-#lcx_pred = np.concatenate((preds5, preds6, preds11, preds12, preds16))
-#lcx_gt = np.concatenate((survival_yhat5, survival_yhat6, survival_yhat11, survival_yhat12, survival_yhat16))
-
 # Plot ROC
-fpr, tpr, _ = roc_curve(ground_truth, predictions[:,0])
-auc = round(roc_auc_score(ground_truth, predictions[:,0]), 2)
-plt.plot(fpr, tpr, label="AHA Cluster Classifiers AUC="+str(auc), color='navy')
+import scipy.stats
+def mean_confidence_interval(data, confidence=0.95):
+    n = len(data)
+    se = scipy.stats.sem(data)
+    m = data
+    h = se * scipy.stats.t.ppf((1 + confidence) / 2., n-1)
+    return m-h, m+h
 fpr, tpr, _ = roc_curve(ground_truth, predictionsMul[:,0])
+tprs_lower, tprs_upper = mean_confidence_interval(tpr)
 auc = round(roc_auc_score(ground_truth, predictionsMul[:,0]), 2)
-plt.plot(fpr, tpr, label="AHA Multilabel Classifier AUC="+str(auc), color='gold')
+plt.plot(fpr, tpr, label="AHA Multilabel Classifier AUC="+str(auc), color='cyan')
+plt.fill_between(fpr, tprs_lower,tprs_upper, color='cyan', alpha=.20)
+fpr, tpr, _ = roc_curve(ground_truth, predictions[:,0])
+tprs_lower, tprs_upper = mean_confidence_interval(tpr)
+auc = round(roc_auc_score(ground_truth, predictions[:,0]), 2)
+plt.plot(fpr, tpr, label="AHA Cluster Classifiers AUC="+str(auc), color='purple')
+plt.fill_between(fpr, tprs_lower,tprs_upper, color='purple', alpha=.20)
 plt.plot([0, 1], [0, 1], color='navy', lw=1, linestyle='--')
 plt.legend()
 plt.xlabel('1 - Specificity')
@@ -315,80 +299,58 @@ plt.show()
 
 # Calculate Cohen Kappa agreeement
 import statsmodels.api as sm
-# Calculate Cohen Kappa agreeement
-import statsmodels.api as sm
 
-predictions = np.array(list(map(lambda x: 0 if x<0.5 else 1, predictionsMul)))
+# Coen kappa for cluster classifiers
+precision, recall, thresholds = precision_recall_curve(ground_truth, predictions[:,0])
+predictionsList = np.array(list(map(lambda x: 0 if x<np.mean(thresholds) else 1, predictions)))
 ground_truth = np.squeeze(ground_truth)
-print('Cohen Kappa Score:', cohen_kappa_score(predictions, ground_truth))
+print('Cohen Kappa Score:', cohen_kappa_score(predictionsList, ground_truth))
 
-#lad_pred = np.array(list(map(lambda x: 0 if x<0.5 else 1, lad_pred)))
-#lad_gt = np.squeeze(lad_gt)
-#print(cohen_kappa_score(lad_pred, lad_gt))
-#rca_pred = np.array(list(map(lambda x: 0 if x<0.5 else 1, rca_pred)))
-#rca_gt = np.squeeze(rca_gt)
-#print(cohen_kappa_score(rca_pred, rca_gt))
-#lcx_pred = np.array(list(map(lambda x: 0 if x<0.5 else 1, lcx_pred)))
-#lcx_gt = np.squeeze(lcx_gt)
-#print(cohen_kappa_score(lcx_pred, lcx_gt))
-
-
-# HNN
-# Mortality
-testImageX = testX
-testAttrX = process_attributes(df)
-testAttrX = np.array(testAttrX)
-survival_yhatMM = np.array(df['Event_x'])
-
-json_file = open('models/Mortality/lge_mortality.json','r')
-modelMM_json = json_file.read()
-json_file.close()
-modelMM = model_from_json(modelMM_json)
-modelMM.load_weights('models/Mortality/lge_mortality_my_model.best.hdf5')
-
-# Predict with model
-predsMM = modelMM.predict([testAttrX, testImageX])
-pred_test_clMM = np.array(list(map(lambda x: 0 if x<0.5 else 1, predsMM)))
-print(pred_test_clMM[:5])
-
-prob_outputsMM = {
-    "pred": pred_test_clMM,
-    "actual_value": survival_yhatMM
-}
-
-prob_output_dfMM = pd.DataFrame(prob_outputsMM)
-print(prob_output_dfMM.head())
-
-# VT
-survival_yhatVT = np.array(df['VT'])
-json_file = open('models/VA/lge_VA.json','r')
-modelVA_json = json_file.read()
-json_file.close()
-modelVA = model_from_json(modelVA_json)
-modelVA.load_weights('models/VA/lge_VA_my_model.best.hdf5')
-
-# Predict with model
-predsVA = modelVA.predict([testAttrX, testImageX])
-pred_test_clVA = np.array(list(map(lambda x: 0 if x<0.5 else 1, predsVA)))
-print(pred_test_clVA[:5])
-
-prob_outputsVA = {
-    "pred": pred_test_clVA,
-    "actual_value": survival_yhatVT
-}
-
-prob_output_dfVA = pd.DataFrame(prob_outputsVA)
-print(prob_output_dfVA.head())
-
-fpr, tpr, _ = roc_curve(survival_yhatMM, predsMM[:,0])
-auc = round(roc_auc_score(survival_yhatMM, predsMM[:,0]), 2)
-plt.plot(fpr, tpr, label="HNN Mortality AUC="+str(auc), color='blue')
-fpr, tpr, _ = roc_curve(survival_yhatVT, predsVA[:,0])
-auc = round(roc_auc_score(survival_yhatVT, predsVA[:,0]), 2)
-plt.plot(fpr, tpr, label="HNN Ventricular Arrhythmia AUC="+str(auc), color='red')
-plt.plot([0, 1], [0, 1], color='navy', lw=1, linestyle='--')
-plt.legend()
-plt.xlabel('1 - Specificity')
-plt.ylabel('Sensitivity')
-plt.grid()
+# plot confusion matrix
+cm = confusion_matrix(ground_truth, predictionsList)
+disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+disp.plot()
+plt.title("Confusion matrix cluster classifier")
 plt.show()
+
+# Evaluate model
+print(classification_report(ground_truth, predictionsList))
+print('Cluster Classifier ROCAUC score:',roc_auc_score(ground_truth, predictions[:,0]))
+print('Cluster Classifier Accuracy score:',accuracy_score(ground_truth, predictionsList))
+print('Cluster Classifier Precision:', np.mean(precision))
+print('Cluster Classifier recall:', np.mean(recall))
+print('Cluster Classifier F1 Score:',average_precision_score(ground_truth, predictions[:,0]))
+
+# Cohen kappa for multi-lable classifier
+precisionMul, recallMul, thresholdsMul = precision_recall_curve(ground_truth, predictionsMul[:,0])
+predictionsMulList = np.array(list(map(lambda x: 0 if x<np.mean(thresholdsMul) else 1, predictionsMul)))
+print('Cohen Kappa Score:', cohen_kappa_score(predictionsMulList, ground_truth))
+
+# plot confusion matrix
+cm = confusion_matrix(ground_truth, predictionsMulList)
+disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+disp.plot()
+plt.title("Confusion matrix multilabel classifier")
+plt.show()
+
+# Evaluate model
+print(classification_report(ground_truth, predictionsMulList))
+print('Multilabel Classifier ROCAUC score:',roc_auc_score(ground_truth, predictionsMul[:,0]))
+print('Multilabel Classifier Accuracy score:',accuracy_score(ground_truth, predictionsMulList))
+print('Multilabel Classifier Precision:', np.mean(precisionMul))
+print('Multilabel Classifier recall:', np.mean(recallMul))
+print('Multilabel Classifier F1 Score:',average_precision_score(ground_truth, predictionsMul[:,0]))
+
+# Calculate McNemar's test
+print("Evaluate multi-label classifier vs cluster of classifiers...")
+tb = mcnemar_table(y_target=ground_truth,
+                   y_model1=predictionsList,
+                   y_model2=predictionsMulList)
+chi2, p = mcnemar(ary=tb, corrected=True)
+print('chi-squared:', chi2)
+print('p-value:', p)
+
+
+
+
+
