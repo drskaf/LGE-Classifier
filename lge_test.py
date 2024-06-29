@@ -14,7 +14,7 @@ import matplotlib.image as mpimg
 from skimage.transform import resize
 import cv2
 from sklearn.metrics import roc_auc_score, accuracy_score, f1_score, roc_curve, classification_report, \
-    precision_recall_curve, average_precision_score, confusion_matrix, ConfusionMatrixDisplay
+    precision_recall_curve, average_precision_score, confusion_matrix, ConfusionMatrixDisplay, precision_score, recall_score
 import pickle
 from random import sample
 from sklearn.model_selection import train_test_split
@@ -27,9 +27,17 @@ from sklearn.metrics import cohen_kappa_score
 from statsmodels.stats.contingency_tables import mcnemar
 from mlxtend.evaluate import mcnemar_table, mcnemar
 
+# Command line arguments
+ap = argparse.ArgumentParser()
+ap.add_argument("-d", "--directory", required=False, help="path to input directory")
+args = vars(ap.parse_args())
 
 # Load dataframe and creating classes
 patient_info = pd.read_csv('/Users/ebrahamalskaf/Documents/patient_info.csv')
+patient_info['Ventricular_fibrillation_(disorder)'] = patient_info['Ventricular_fibrillation_(disorder)'].astype(int)
+patient_info['Ventricular_tachycardia_(disorder)'] = patient_info['Ventricular_tachycardia_(disorder)'].astype(int)
+patient_info['VT'] = patient_info[['Ventricular_fibrillation_(disorder)', 'Ventricular_tachycardia_(disorder)']].apply(lambda x:'{}'.format(np.max(x)), axis=1)
+patient_info['VT'] = patient_info['VT'].astype(int)
 aha_list = ['LGE_basal anterior','LGE_basal anteroseptum','LGE_basal inferoseptum','LGE_basal inferior'
                         ,'LGE_basal inferolateral', 'LGE_basal anterolateral','LGE_mid anterior','LGE_mid anteroseptum','LGE_mid inferoseptum','LGE_mid inferior',
                                        'LGE_mid inferolateral','LGE_mid anterolateral','LGE_apical anterior', 'LGE_apical septum','LGE_apical inferior','LGE_apical lateral', 'True_apex_x']
@@ -280,77 +288,137 @@ def mean_confidence_interval(data, confidence=0.95):
     m = data
     h = se * scipy.stats.t.ppf((1 + confidence) / 2., n-1)
     return m-h, m+h
-fpr, tpr, _ = roc_curve(ground_truth, predictionsMul[:,0])
-tprs_lower, tprs_upper = mean_confidence_interval(tpr)
+
+
+# Find optimal threshold for cluster classifier
+
+
+#fpr, tpr, _ = roc_curve(ground_truth, predictionsMul[:,0])
+fpr_mul, tpr_mul, thresholds_mul = roc_curve(ground_truth, predictionsMul[:,0])
+optimal_idx_mul = np.argmax(tpr_mul - fpr_mul)
+optimal_threshold_mul = thresholds_mul[optimal_idx_mul]
+tprs_lower, tprs_upper = mean_confidence_interval(tpr_mul)
 auc = round(roc_auc_score(ground_truth, predictionsMul[:,0]), 2)
-plt.plot(fpr, tpr, label="AHA Multilabel Classifier AUC="+str(auc), color='cyan')
-plt.fill_between(fpr, tprs_lower,tprs_upper, color='cyan', alpha=.20)
-fpr, tpr, _ = roc_curve(ground_truth, predictions[:,0])
-tprs_lower, tprs_upper = mean_confidence_interval(tpr)
+plt.plot(fpr_mul, tpr_mul, label="AHA Multilabel Classifier AUC="+str(auc), color='cyan')
+plt.fill_between(fpr_mul, tprs_lower,tprs_upper, color='cyan', alpha=.20)
+#fpr, tpr, _ = roc_curve(ground_truth, predictions[:,0])
+fpr_cluster, tpr_cluster, thresholds_cluster = roc_curve(ground_truth, predictions[:,0])
+optimal_idx_cluster = np.argmax(tpr_cluster - fpr_cluster)
+optimal_threshold_cluster = thresholds_cluster[optimal_idx_cluster]
+tprs_lower, tprs_upper = mean_confidence_interval(tpr_cluster)
 auc = round(roc_auc_score(ground_truth, predictions[:,0]), 2)
-plt.plot(fpr, tpr, label="AHA Cluster Classifiers AUC="+str(auc), color='purple')
-plt.fill_between(fpr, tprs_lower,tprs_upper, color='purple', alpha=.20)
+plt.plot(fpr_cluster, tpr_cluster, label="AHA Cluster Classifiers AUC="+str(auc), color='purple')
+plt.fill_between(fpr_cluster, tprs_lower,tprs_upper, color='purple', alpha=.20)
 plt.plot([0, 1], [0, 1], color='navy', lw=1, linestyle='--')
 plt.legend()
 plt.xlabel('1 - Specificity')
 plt.ylabel('Sensitivity')
+plt.title('ROC Curve Comparison')
 plt.grid()
 plt.show()
 
-# Calculate Cohen Kappa agreeement
-import statsmodels.api as sm
+# Calculate precision, recall, and F1 score for the optimal threshold
+def calculate_metrics(ground_truth, predictions, threshold):
+    binary_predictions = (predictions >= threshold).astype(int)
+    precision = precision_score(ground_truth, binary_predictions)
+    recall = recall_score(ground_truth, binary_predictions)
+    f1 = f1_score(ground_truth, binary_predictions)
+    return precision, recall, f1
 
-# Coen kappa for cluster classifiers
-precision, recall, thresholds = precision_recall_curve(ground_truth, predictions[:,0])
-predictionsList = np.array(list(map(lambda x: 0 if x<np.mean(thresholds) else 1, predictions)))
-ground_truth = np.squeeze(ground_truth)
-print('Cohen Kappa Score:', cohen_kappa_score(predictionsList, ground_truth))
+# Metrics for multi-label classifier
+precision_mul, recall_mul, f1_mul = calculate_metrics(ground_truth, predictionsMul[:,0], optimal_threshold_mul)
 
-# plot confusion matrix
-cm = confusion_matrix(ground_truth, predictionsList)
+# Metrics for cluster classifier
+precision_cluster, recall_cluster, f1_cluster = calculate_metrics(ground_truth, predictions[:,0], optimal_threshold_cluster)
+
+print(f"Optimal threshold for Multi-label Classifier: {optimal_threshold_mul}")
+print(f"Precision for Multi-label Classifier at optimal threshold: {precision_mul}")
+print(f"Recall for Multi-label Classifier at optimal threshold: {recall_mul}")
+print(f"F1 score for Multi-label Classifier at optimal threshold: {f1_mul}")
+
+print(f"Optimal threshold for Cluster Classifiers: {optimal_threshold_cluster}")
+print(f"Precision for Cluster Classifiers at optimal threshold: {precision_cluster}")
+print(f"Recall for Cluster Classifiers at optimal threshold: {recall_cluster}")
+print(f"F1 score for Cluster Classifiers at optimal threshold: {f1_cluster}")
+
+# Calculate Cohen Kappa agreement
+print('Cohen Kappa Score for cluster classifier:', cohen_kappa_score((predictions[:,0] >= optimal_threshold_cluster).astype(int), ground_truth))
+print('Cohen Kappa Score for multi-label classifier:', cohen_kappa_score((predictionsMul[:,0] >= optimal_threshold_mul).astype(int), ground_truth))
+
+# Plot confusion matrix for cluster classifier
+cm = confusion_matrix(ground_truth, (predictions[:,0] >= optimal_threshold_cluster).astype(int))
 disp = ConfusionMatrixDisplay(confusion_matrix=cm)
 disp.plot()
 plt.title("Confusion matrix cluster classifier")
 plt.show()
 
-# Evaluate model
-print(classification_report(ground_truth, predictionsList))
-print('Cluster Classifier ROCAUC score:',roc_auc_score(ground_truth, predictions[:,0]))
-print('Cluster Classifier Accuracy score:',accuracy_score(ground_truth, predictionsList))
-print('Cluster Classifier Precision:', np.mean(precision))
-print('Cluster Classifier recall:', np.mean(recall))
-print('Cluster Classifier F1 Score:',average_precision_score(ground_truth, predictions[:,0]))
+# Evaluate cluster classifier model
+print('Cluster Classifier Classification Report:')
+print(classification_report(ground_truth, (predictions[:,0] >= optimal_threshold_cluster).astype(int)))
+print('Cluster Classifier ROCAUC score:', roc_auc_score(ground_truth, predictions[:,0]))
+print('Cluster Classifier Accuracy score:', accuracy_score(ground_truth, (predictions[:,0] >= optimal_threshold_cluster).astype(int)))
+print('Cluster Classifier Precision:', precision_cluster)
+print('Cluster Classifier recall:', recall_cluster)
+print('Cluster Classifier F1 Score:', f1_cluster)
 
-# Cohen kappa for multi-lable classifier
-precisionMul, recallMul, thresholdsMul = precision_recall_curve(ground_truth, predictionsMul[:,0])
-predictionsMulList = np.array(list(map(lambda x: 0 if x<np.mean(thresholdsMul) else 1, predictionsMul)))
-print('Cohen Kappa Score:', cohen_kappa_score(predictionsMulList, ground_truth))
-
-# plot confusion matrix
-cm = confusion_matrix(ground_truth, predictionsMulList)
+# Plot confusion matrix for multi-label classifier
+cm = confusion_matrix(ground_truth, (predictionsMul[:,0] >= optimal_threshold_mul).astype(int))
 disp = ConfusionMatrixDisplay(confusion_matrix=cm)
 disp.plot()
-plt.title("Confusion matrix multilabel classifier")
+plt.title("Confusion matrix multi-label classifier")
 plt.show()
 
-# Evaluate model
-print(classification_report(ground_truth, predictionsMulList))
-print('Multilabel Classifier ROCAUC score:',roc_auc_score(ground_truth, predictionsMul[:,0]))
-print('Multilabel Classifier Accuracy score:',accuracy_score(ground_truth, predictionsMulList))
-print('Multilabel Classifier Precision:', np.mean(precisionMul))
-print('Multilabel Classifier recall:', np.mean(recallMul))
-print('Multilabel Classifier F1 Score:',average_precision_score(ground_truth, predictionsMul[:,0]))
+# Evaluate multi-label classifier model
+print('Multi-label Classifier Classification Report:')
+print(classification_report(ground_truth, (predictionsMul[:,0] >= optimal_threshold_mul).astype(int)))
+print('Multi-label Classifier ROCAUC score:', roc_auc_score(ground_truth, predictionsMul[:,0]))
+print('Multi-label Classifier Accuracy score:', accuracy_score(ground_truth, (predictionsMul[:,0] >= optimal_threshold_mul).astype(int)))
+print('Multi-label Classifier Precision:', precision_mul)
+print('Multi-label Classifier recall:', recall_mul)
+print('Multi-label Classifier F1 Score:', f1_mul)
 
 # Calculate McNemar's test
 print("Evaluate multi-label classifier vs cluster of classifiers...")
 tb = mcnemar_table(y_target=ground_truth,
-                   y_model1=predictionsList,
-                   y_model2=predictionsMulList)
+                   y_model1=(predictions[:,0] >= optimal_threshold_cluster).astype(int),
+                   y_model2=(predictionsMul[:,0] >= optimal_threshold_mul).astype(int))
 chi2, p = mcnemar(ary=tb, corrected=True)
 print('chi-squared:', chi2)
 print('p-value:', p)
 
+# Plot F1 score curves with confidence intervals
+def mean_confidence_interval_f1(data, confidence=0.95):
+    n = len(data)
+    se = scipy.stats.sem(data)
+    m = data.mean()
+    h = se * scipy.stats.t.ppf((1 + confidence) / 2., n-1)
+    return m-h, m+h
 
+def plot_f1_curve_with_ci(ground_truth, predictions, label):
+    thresholds = np.arange(0.0, 1.1, 0.1)
+    f1_scores = []
+    ci_lower = []
+    ci_upper = []
+
+    for threshold in thresholds:
+        f1 = f1_score(ground_truth, (predictions >= threshold).astype(int))
+        f1_scores.append(f1)
+        m, h = mean_confidence_interval_f1(np.array(f1_scores))
+        ci_lower.append(m - h)
+        ci_upper.append(m + h)
+
+    plt.plot(thresholds, f1_scores, label=label)
+    plt.fill_between(thresholds, ci_lower, ci_upper, alpha=0.2)
+
+plt.figure(figsize=(10, 8))
+plot_f1_curve_with_ci(ground_truth, predictionsMul[:,0], 'Multilabel Classifier')
+plot_f1_curve_with_ci(ground_truth, predictions[:,0], 'Cluster Classifiers')
+plt.xlabel('Threshold')
+plt.ylabel('F1 Score')
+plt.title('F1 Score Curve with Confidence Intervals')
+plt.legend(loc="lower right")
+plt.grid()
+plt.show()
 
 
 
